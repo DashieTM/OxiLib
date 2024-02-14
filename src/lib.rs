@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn config_test() {
         let conf =
-            create_config::<Conf, OptConf>("config.toml", "oxilib", format!("r#something = 10#"));
+            create_config::<Conf, OptConf>("config.toml", "oxilib", String::from("this should be unused"));
         dbg!(&conf);
         assert_eq!(conf.something, 10);
         assert_eq!(conf.what, String::from("pingpang"));
