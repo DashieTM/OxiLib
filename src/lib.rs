@@ -1,6 +1,6 @@
-use serde::{self, de::DeserializeOwned};
+use serde::{self, de::DeserializeOwned, Deserialize};
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     fs,
     path::{Path, PathBuf},
     str::FromStr,
@@ -15,13 +15,11 @@ impl Display for ReadConfigFileError {
 }
 impl std::error::Error for ReadConfigFileError {}
 
-pub trait Config<Optional: ConfigOptional> {
+pub trait Config<Optional: ConfigOptional>: for<'de> Deserialize<'de> {
     fn create_from_optional(optional: Optional) -> Self;
 }
 
-pub trait ConfigOptional {
-    fn create() -> Self;
-}
+pub trait ConfigOptional: for<'de> Deserialize<'de> + DeserializeOwned + Debug {}
 
 pub fn create_config_folder(config_path: &'static str) -> PathBuf {
     let base = directories_next::BaseDirs::new().unwrap();
@@ -61,7 +59,7 @@ pub fn create_config<ConcreteConfig, OptionalConfig>(
 ) -> ConcreteConfig
 where
     ConcreteConfig: Config<OptionalConfig>,
-    OptionalConfig: ConfigOptional + DeserializeOwned,
+    OptionalConfig: ConfigOptional,
 {
     let config_file = config_dir.join(config_file_name);
     if !config_file.is_file() {
@@ -134,15 +132,7 @@ mod tests {
         what: Option<String>,
     }
 
-    impl ConfigOptional for OptConf {
-        // TODO: the last piece would be the creation of a macro for this
-        fn create() -> Self {
-            OptConf {
-                something: None,
-                what: Some(String::from("grengeng")),
-            }
-        }
-    }
+    impl ConfigOptional for OptConf {}
 
     #[test]
     fn test_config_folder() {
