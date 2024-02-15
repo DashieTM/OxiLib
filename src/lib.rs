@@ -34,7 +34,7 @@ pub fn create_config_folder(config_path: &'static str) -> PathBuf {
     config_dir
 }
 
-pub fn read_specific_file(absolute_path: &'static str) -> Result<String, ReadConfigFileError> {
+pub fn read_specific_css(absolute_path: &'static str) -> Result<String, ReadConfigFileError> {
     let path = PathBuf::from_str(absolute_path);
     if path.is_err() {
         return Err(ReadConfigFileError {});
@@ -52,6 +52,24 @@ pub fn read_specific_file(absolute_path: &'static str) -> Result<String, ReadCon
     Ok(content.unwrap())
 }
 
+pub fn read_specific_config<ConcreteConfig, OptionalConfig>(
+    absolute_path: &'static str,
+) -> Result<ConcreteConfig, ReadConfigFileError>
+where
+    ConcreteConfig: Config<OptionalConfig>,
+    OptionalConfig: ConfigOptional,
+{
+    let path = PathBuf::from_str(absolute_path);
+    if path.is_err() {
+        return Err(ReadConfigFileError {});
+    }
+    let path = path.unwrap();
+    if !path.is_file() {
+        return Err(ReadConfigFileError {});
+    }
+    Ok(create_config(&path, "", ""))
+}
+
 pub fn create_config<ConcreteConfig, OptionalConfig>(
     config_dir: &Path,
     config_file_name: &'static str,
@@ -61,7 +79,11 @@ where
     ConcreteConfig: Config<OptionalConfig>,
     OptionalConfig: ConfigOptional,
 {
-    let config_file = config_dir.join(config_file_name);
+    let config_file = if config_file_name.is_empty() {
+        PathBuf::from(config_dir)
+    } else {
+        config_dir.join(config_file_name)
+    };
     if !config_file.is_file() {
         fs::File::create(&config_file).expect("Could not create config file");
     }
@@ -102,7 +124,10 @@ mod tests {
 
     use serde::Deserialize;
 
-    use crate::{create_config, create_config_folder, create_css, Config, ConfigOptional};
+    use crate::{
+        create_config, create_config_folder, create_css, read_specific_config, read_specific_css,
+        Config, ConfigOptional,
+    };
 
     #[derive(Debug, Deserialize)]
     struct Conf {
@@ -163,14 +188,30 @@ mod tests {
     }
 
     #[test]
-    fn test_custom_file() {
-        let mut file = fs::File::create("test.txt").expect("Could not create test file");
-        let content = "this is a random test";
+    fn test_custom_css() {
+        let mut file = fs::File::create("test.css").expect("Could not create test file");
+        let content = ".class { color: red }";
         file.write_all(content.as_bytes())
             .expect("Could not write to test file.");
-        let read_content =
-            fs::read_to_string("test.txt").expect("Could not read from created file.");
+        let read_content = read_specific_css("test.css").expect("Could not read css file.");
         assert_eq!(content, &read_content);
-        fs::remove_file("test.txt").expect("Could not remove testfolder again.");
+        fs::remove_file("test.css").expect("Could not remove testfolder again.");
+    }
+
+    #[test]
+    fn test_custom_config() {
+        let mut file = fs::File::create("test.toml").expect("Could not create test file");
+        let config = Conf {
+            something: 10,
+            what: "no".to_string(),
+        };
+        let content = "something = 10";
+        file.write_all(content.as_bytes())
+            .expect("Could not write to test file.");
+        let read_config = read_specific_config::<Conf, OptConf>("test.toml")
+            .expect("Could not deserialize toml.");
+        assert_eq!(read_config.something, config.something);
+        assert_eq!(read_config.what, "pingpang");
+        fs::remove_file("test.toml").expect("Could not remove testfolder again.");
     }
 }
